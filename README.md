@@ -21,6 +21,8 @@ A library that does a similar thing is [rdiff](https://linux.die.net/man/1/rdiff
 3. detects chunk removals
 4. detects additions between chunks with shifted original chunks
 
-## Research
+## Research Materials
  - https://www.samba.org/~tridge/phd_thesis.pdf
  - https://www.andrew.cmu.edu/course/15-749/READINGS/required/cas/tridgell96.pdf 
+ - https://developpaper.com/principle-and-application-of-rsync-algorithm/
+ - https://rsync.samba.org/tech_report/node3.html
