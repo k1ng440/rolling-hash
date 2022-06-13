@@ -1,10 +1,8 @@
 package rollsum
 
 import (
-	"bytes"
 	"fmt"
 	"hash/adler32"
-	"io"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -60,10 +58,19 @@ func TestGolden(t *testing.T) {
 			roll := New(1024 * 1024)
 			roll.Write(append([]byte("\x00"), db[:len(db)-1]...))
 			roll.Roll(db[len(db)-1])
-
-			if !assert.Equal(t, classic([]byte(g.data)), roll.Sum32(), "invalid Roll") {
-				fmt.Printf("orginal: %s\ncurrent window: %v\nblockSize: %d\n\n", string(db), string(roll.Window()), len(roll.window))
-			}
+			assert.Equal(t, classic([]byte(g.data)), roll.Sum32())
 		})
 	}
+}
+
+func TestSum(t *testing.T) {
+	testData := []byte("abcdefghi")
+	roll := New(1024 * 1024)
+	roll.Write(testData)
+	sum := roll.Sum([]byte{})
+
+	adler := adler32.New()
+	adler.Write(testData)
+
+	assert.Equal(t, adler.Sum([]byte{}), sum)
 }

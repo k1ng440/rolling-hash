@@ -1,4 +1,4 @@
-package rollinghash
+package utils
 
 import (
 	"crypto/md5"

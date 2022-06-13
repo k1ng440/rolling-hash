@@ -1,10 +1,10 @@
-// rollsum is modd on rsync Adler32 rolling checksum
+// Package rollsum implements rsync Adler32 rolling checksum
 // https://rsync.samba.org/tech_report/node3.html
-// RFC https://datatracker.ietf.org/doc/html/rfc1950
+// https://www.samba.org/~tridge/phd_thesis.pdf
+// https://www.andrew.cmu.edu/course/15-749/readings/required/cas/tridgell96.pdf
 package rollsum
 
 import (
-	"errors"
 	"hash"
 	"hash/adler32"
 )
@@ -25,6 +25,7 @@ type Rollsum struct {
 	removed   byte
 }
 
+// New returns a new instance of Rollsum
 func New(windowCap int) *Rollsum {
 	return &Rollsum{
 		a:         1,
@@ -47,11 +48,6 @@ func (r *Rollsum) Write(block []byte) (int, error) {
 		return 0, nil
 	}
 
-	if len(r.window) > 0 {
-		return 0, errors.New("adding to initialized window is not allowed")
-	}
-
-	// TODO sliding window
 	r.window = append(r.window, block...)
 
 	r.hasher.Reset()
@@ -60,12 +56,12 @@ func (r *Rollsum) Write(block []byte) (int, error) {
 
 	r.a = int32(sum & 0xffff)
 	r.b = int32(sum>>16) & 0xffff
-	r.blockLen = int32(len(block))
+	r.blockLen = int32(len(r.window)) % mod
 
 	return int(r.blockLen), nil
 }
 
-func (r *Rollsum) slide(b byte) (leave, enter int32) {
+func (r *Rollsum) circle(b byte) (leave, enter int32) {
 	r.removed = r.window[0]
 	r.window = append(r.window[1:], b)
 	enter = int32(b)
@@ -79,27 +75,31 @@ func (r *Rollsum) Roll(b byte) {
 		return
 	}
 
-	leave, enter := r.slide(b)
+	leave, enter := r.circle(b)
 	r.a = (((r.a + enter - leave) % mod) + mod) % mod
 	r.b = (((r.b - r.blockLen*leave - 1 + r.a) % mod) + mod) % mod
 }
 
+// Window returns current window used to generate checksum
 func (r *Rollsum) Window() []byte {
 	return r.window
 }
 
-func (r *Rollsum) WindowCap() int {
-	return r.windowCap
+func (r *Rollsum) Removed() byte {
+	return r.removed
 }
 
+// Size returns underneath block size
 func (r *Rollsum) Size() int {
 	return int(r.blockLen)
 }
 
+// Sum32 returns an uint32 checksum of the working window
 func (r *Rollsum) Sum32() uint32 {
 	return uint32(r.b<<16 | r.a)
 }
 
+// Sum appends checksum of current window to given byte slice
 func (r *Rollsum) Sum(in []byte) []byte {
 	s := r.Sum32()
 	return append(in, byte(s>>24), byte(s>>16), byte(s>>8), byte(s))
