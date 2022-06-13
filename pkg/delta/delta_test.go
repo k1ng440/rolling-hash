@@ -2,64 +2,59 @@ package delta
 
 import (
 	"bytes"
-	"fmt"
 	"testing"
 
-	"github.com/k1ng440/rolling-hash/internal/utils"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func dummyUtilFile(blockSize int, data []byte) chan *utils.File {
-	c := make(chan *utils.File)
-	tmp := make([]byte, len(data))
-	copy(tmp, data)
-
-	go func() {
-		defer close(c)
-
-		idx := 0
-		for len(tmp) > 0 {
-			end := blockSize
-
-			if len(tmp) < end {
-				end = len(tmp)
-			}
-
-			c <- &utils.File{
-				BlockIndex: idx,
-				Block:      tmp[:end],
-				BlockSize:  len(tmp[:end]),
-			}
-
-			idx++
-
-			tmp = tmp[end:]
-		}
-	}()
-
-	return c
-}
-
-func calculateDiff(t *testing.T, blocksize int, fileA, FileB []byte) ([]*BlockSignature, map[int]*Delta) {
+func calculateDiff(t *testing.T, blockSize int, fileA, FileB []byte) ([]*BlockSignature, map[int]*Delta) {
 	// generate signature for file A
-	fileAChan := dummyUtilFile(blocksize, fileA)
-	signatures, err := GenerateSignatures(fileAChan, blocksize)
+	fileAbuf := bytes.NewReader(fileA)
+	signatures, err := GenerateSignatures(fileAbuf, blockSize)
 	require.NoError(t, err)
 
 	// generate delta for file B using the signatures of fileA
 	fileBBuf := bytes.NewBuffer(FileB)
-	delta, err := GenerateDelta(fileBBuf, blocksize, signatures)
+	delta, err := GenerateDelta(fileBBuf, blockSize, signatures)
 	require.NoError(t, err)
 
 	return signatures, delta
+}
+
+func matchDiff(t *testing.T, expected map[int][]byte, delta map[int]*Delta) {
+	for i, expect := range expected {
+		actual, ok := delta[i]
+		if !assert.Equalf(t, true, ok, "No matching delta for %d", i) {
+			continue
+		}
+
+		// fmt.Printf("%s <=> %s\n", string(expect), string(actual.Data))
+		assert.Equal(t, string(expect), string(actual.Data))
+	}
 }
 
 func TestEqual(t *testing.T) {
 	a := []byte("Be yourself; everyone else is already taken. - Oscar Wilde")
 	b := []byte("Be yourself; everyone else is already taken. - Oscar Wilde")
 
-	_, delta := calculateDiff(t, 30, a, b)
-	for _, d := range delta {
-		fmt.Printf("%#v\n", d)
+	_, delta := calculateDiff(t, 1<<4, a, b)
+	matchDiff(t, map[int][]byte{
+		0: make([]byte, 0),
+		1: make([]byte, 0),
+		2: make([]byte, 0),
+		3: make([]byte, 0),
+	}, delta)
+}
+
+func TestChunkChange(t *testing.T) {
+	a := []byte("When summertime rolls in and the days get hot enough that you need to cool off from the blazing heat")
+	b := []byte("When summertime rolls in and the days hot enough that you need to cool off from the blazing heat")
+
+	expect := map[int][]byte{
+		3: []byte(" days hot en"),
 	}
+
+	_, delta := calculateDiff(t, 1<<4, a, b)
+	matchDiff(t, expect, delta)
 }

@@ -40,7 +40,7 @@ func TestBasic(t *testing.T) {
 
 	old := roll.Sum32()
 	for _, v := range []byte("abcdefghi") {
-		roll.Roll(v)
+		roll.Rotate(v)
 	}
 	require.Equal(t, old, roll.Sum32())
 }
@@ -57,10 +57,39 @@ func TestGolden(t *testing.T) {
 
 			roll := New(1024 * 1024)
 			roll.Write(append([]byte("\x00"), db[:len(db)-1]...))
-			roll.Roll(db[len(db)-1])
+			roll.Rotate(db[len(db)-1])
 			assert.Equal(t, classic([]byte(g.data)), roll.Sum32())
 		})
 	}
+}
+
+func TestRollInAndOut(t *testing.T) {
+	a := []byte("Adler-32 is a checksum")
+	roll := New(1 << 16)
+	for _, x := range a {
+		roll.In(x)
+	}
+	require.Equal(t, classic(a), roll.Sum32())
+
+	roll.Out()
+	a = a[1:]
+	assert.Equal(t, classic(a), roll.Sum32())
+
+	roll.Out()
+	a = a[1:]
+	assert.Equal(t, classic(a), roll.Sum32())
+
+	roll.Out()
+	a = a[1:]
+	assert.Equal(t, classic(a), roll.Sum32())
+
+	roll.Out()
+	a = a[1:]
+	assert.Equal(t, classic(a), roll.Sum32())
+
+	roll.Out()
+	a = a[1:]
+	assert.Equal(t, classic(a), roll.Sum32())
 }
 
 func TestSum(t *testing.T) {

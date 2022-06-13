@@ -2,7 +2,7 @@ package delta
 
 import (
 	"errors"
-	"fmt"
+	"io"
 
 	"github.com/k1ng440/rolling-hash/internal/utils"
 	"github.com/k1ng440/rolling-hash/rollsum"
@@ -22,12 +22,12 @@ type BlockSignature struct {
 	// Error is used to report the error reading the file or calculating checksums
 	Error error
 
-	// BlockData is used for debugging purpose only
+	// BlockData is used for debugging purpose
 	BlockData []byte
 }
 
 // GenerateSignatures calculates the signature of given target
-func GenerateSignatures(target chan *utils.File, blockSize int) ([]*BlockSignature, error) {
+func GenerateSignatures(target io.Reader, blockSize int) ([]*BlockSignature, error) {
 	result := make([]*BlockSignature, 0)
 	strongHasher := utils.NewHasher()
 	weakHasher := rollsum.New(blockSize)
@@ -36,24 +36,39 @@ func GenerateSignatures(target chan *utils.File, blockSize int) ([]*BlockSignatu
 		return nil, errors.New("blockSize must be greater than 0")
 	}
 
-	for buf := range target {
-		if buf.Error != nil {
-			// forward the error
-			return nil, buf.Error
+	loop := true
+	index := 0
+	block := make([]byte, blockSize)
+	for loop {
+
+		n, err := io.ReadAtLeast(target, block, blockSize)
+		if err != nil {
+			if err == io.EOF {
+				return nil, err
+			}
+
+			// catch all error except io.ErrUnexpectedEOF
+			if err != io.ErrUnexpectedEOF {
+				return nil, err
+			}
+
+			// last loop because of the io.ErrUnexpectedEOF.
+			loop = false
 		}
 
-		fmt.Printf("sig %d => %d = '%s'\n", buf.BlockIndex, len(buf.Block), string(buf.Block))
-
-		stronghash := strongHasher.MakeHash(buf.Block)
+		buf := block[:n]
+		strongHash := strongHasher.MakeHash(buf)
 		weakHasher.Reset()
-		weakHasher.Write(buf.Block)
+		weakHasher.Write(buf)
 
 		result = append(result, &BlockSignature{
-			Strong:    stronghash,
-			Weak:      weakHasher.Sum32(),
-			Index:     buf.BlockIndex,
-			BlockData: buf.Block,
+			Strong: strongHash,
+			Weak:   weakHasher.Sum32(),
+			Index:  index,
+			// BlockData: buf,
 		})
+
+		index++
 	}
 
 	return result, nil

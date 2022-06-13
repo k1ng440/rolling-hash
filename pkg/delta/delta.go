@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
-	"fmt"
 	"io"
 
 	"github.com/k1ng440/rolling-hash/internal/utils"
@@ -87,7 +86,6 @@ func GenerateDelta(reader io.Reader, blockSize int, signatures []*BlockSignature
 	sigLookup := buildHashTable(signatures)
 
 	roll := rollsum.New(DefaultBlockSize)
-
 	buf := bufio.NewReader(reader)
 	tmpData := make([]byte, 0)
 	for {
@@ -103,16 +101,13 @@ func GenerateDelta(reader io.Reader, blockSize int, signatures []*BlockSignature
 
 		// build the initial block
 		if roll.Size() < blockSize {
-			// TODO: Add method for adding bytes to rollsum
-			// Write is can expend the window size
-			roll.Write([]byte{c})
-			tmpData = roll.Window()
+			// expends the window until desired
+			roll.In(c)
 		} else {
-			roll.Roll(c)
+			// add new byte and remove the oldest from window
+			roll.Rotate(c)
 			tmpData = append(tmpData, roll.Removed())
 		}
-
-		fmt.Printf("delta rolling window => %d '%s'\n", roll.Size(), string(roll.Window()))
 
 		// match signature of the window
 		index := matchSignature(sigLookup, roll.Sum32(), roll.Window())
@@ -120,7 +115,6 @@ func GenerateDelta(reader io.Reader, blockSize int, signatures []*BlockSignature
 			continue
 		}
 
-		fmt.Printf("matched %s with sig index: %d\n", string(tmpData), index)
 		// add the matching block
 		result[index] = &Delta{
 			Offset:         (index * blockSize) + blockSize,
@@ -129,7 +123,9 @@ func GenerateDelta(reader io.Reader, blockSize int, signatures []*BlockSignature
 			SignatureIndex: index,
 		}
 
-		tmpData = nil
+		// reset rollsum for next match
+		roll.Reset()
+		tmpData = make([]byte, 0)
 	}
 
 	// add missing blocks to result
