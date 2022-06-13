@@ -4,7 +4,7 @@ import (
 	"errors"
 	"io"
 
-	"github.com/k1ng440/rolling-hash/internal/utils"
+	"github.com/k1ng440/rolling-hash/pkg/internal/utils"
 	"github.com/k1ng440/rolling-hash/pkg/rollsum"
 )
 
@@ -40,11 +40,11 @@ func GenerateSignatures(target io.Reader, blockSize int) ([]*BlockSignature, err
 	index := 0
 	block := make([]byte, blockSize)
 	for loop {
-
 		n, err := io.ReadAtLeast(target, block, blockSize)
 		if err != nil {
+			// end of the file
 			if err == io.EOF {
-				return nil, err
+				break
 			}
 
 			// catch all error except io.ErrUnexpectedEOF

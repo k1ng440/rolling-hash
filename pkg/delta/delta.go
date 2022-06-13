@@ -6,7 +6,7 @@ import (
 	"errors"
 	"io"
 
-	"github.com/k1ng440/rolling-hash/internal/utils"
+	"github.com/k1ng440/rolling-hash/pkg/internal/utils"
 	"github.com/k1ng440/rolling-hash/pkg/rollsum"
 )
 
