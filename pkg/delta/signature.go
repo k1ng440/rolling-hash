@@ -5,7 +5,7 @@ import (
 	"io"
 
 	"github.com/k1ng440/rolling-hash/internal/utils"
-	"github.com/k1ng440/rolling-hash/rollsum"
+	"github.com/k1ng440/rolling-hash/pkg/rollsum"
 )
 
 const (
