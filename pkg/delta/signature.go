@@ -19,14 +19,11 @@ type BlockSignature struct {
 	Strong []byte
 	// rsync rolling checksum
 	Weak uint32
-	// Error is used to report the error reading the file or calculating checksums
-	Error error
-
 	// BlockData is used for debugging purpose
 	BlockData []byte
 }
 
-// GenerateSignatures calculates the signature of given target
+// GenerateSignatures calculate signatures of given target by dividing them blocks
 func GenerateSignatures(target io.Reader, blockSize int) ([]*BlockSignature, error) {
 	result := make([]*BlockSignature, 0)
 	strongHasher := utils.NewHasher()
@@ -38,8 +35,8 @@ func GenerateSignatures(target io.Reader, blockSize int) ([]*BlockSignature, err
 
 	loop := true
 	index := 0
-	block := make([]byte, blockSize)
 	for loop {
+		block := make([]byte, blockSize)
 		n, err := io.ReadAtLeast(target, block, blockSize)
 		if err != nil {
 			// end of the file
@@ -65,7 +62,7 @@ func GenerateSignatures(target io.Reader, blockSize int) ([]*BlockSignature, err
 			Strong: strongHash,
 			Weak:   weakHasher.Sum32(),
 			Index:  index,
-			// BlockData: buf,
+			BlockData: buf,
 		})
 
 		index++

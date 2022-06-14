@@ -14,7 +14,7 @@ type Delta struct {
 	Start          int
 	End            int
 	Missing        bool
-	Data           []byte
+	Literal        []byte
 	SignatureIndex int
 }
 
@@ -81,7 +81,7 @@ func GenerateDelta(reader io.Reader, blockSize int, signatures []*BlockSignature
 	roll := rollsum.New(DefaultBlockSize)
 	buf := bufio.NewReader(reader)
 	result := make(map[int]*Delta)
-	diff := make([]byte, 0, blockSize)
+	tempLiteral := make([]byte, 0, blockSize)
 	eof := false // End of file
 	for !eof {
 		// read single byte from the buffer
@@ -117,7 +117,7 @@ func GenerateDelta(reader io.Reader, blockSize int, signatures []*BlockSignature
 		if index == -1 { // no match
 			// Remove the oldest byte from the rolling hash window and store it in diff
 			roll.Out()
-			diff = append(diff, roll.Removed())
+			tempLiteral = append(tempLiteral, roll.Removed())
 			continue
 		}
 
@@ -125,13 +125,13 @@ func GenerateDelta(reader io.Reader, blockSize int, signatures []*BlockSignature
 		result[index] = &Delta{
 			Start:          index * blockSize,
 			End:            (index * blockSize) + blockSize,
-			Data:           diff,
+			Literal:        tempLiteral,
 			SignatureIndex: index,
 		}
 
 		// Reset rollsum for next window
 		roll.Reset()
-		diff = make([]byte, 0, blockSize)
+		tempLiteral = make([]byte, 0, blockSize)
 	}
 
 	// Verify the integrity of buffer and missing blocks to result
