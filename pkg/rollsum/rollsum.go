@@ -16,7 +16,7 @@ const (
 	mod = 65521
 )
 
-//
+// RollSum is rolling checksum implementation of Adler32, described in rsync PhD thesis by Andrew Tridgell
 type RollSum struct {
 	a, b uint32
 
