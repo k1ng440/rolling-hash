@@ -16,7 +16,8 @@ const (
 	mod = 65521
 )
 
-type Rollsum struct {
+//
+type RollSum struct {
 	a, b uint32
 
 	window    []byte
@@ -26,10 +27,10 @@ type Rollsum struct {
 	removed   byte
 }
 
-// New returns a new instance of Rollsum
-// Note: Rollsum is unsafe and should not be used in go routines without mutual exclusion (sync.Mutex)
-func New(windowCap int) *Rollsum {
-	return &Rollsum{
+// New returns a new instance of RollSum
+// Note: RollSum is unsafe and should not be used in go routines without mutual exclusion (sync.Mutex)
+func New(windowCap int) *RollSum {
+	return &RollSum{
 		a:         1,
 		window:    make([]byte, 0, windowCap),
 		windowCap: windowCap,
@@ -37,7 +38,7 @@ func New(windowCap int) *Rollsum {
 	}
 }
 
-func (r *Rollsum) Reset() {
+func (r *RollSum) Reset() {
 	r.a = 1
 	r.b = 0
 	r.windowLen = 0
@@ -47,8 +48,8 @@ func (r *Rollsum) Reset() {
 
 // Write writes the initial window.
 // the rolling does not occur in this method
-// once the window has been initialized use Roll() method
-func (r *Rollsum) Write(block []byte) (int, error) {
+// once the window has been initialized use Rotate() method
+func (r *RollSum) Write(block []byte) (int, error) {
 	if len(block) == 0 {
 		return 0, nil
 	}
@@ -69,8 +70,8 @@ func (r *Rollsum) Write(block []byte) (int, error) {
 	return int(r.windowLen), nil
 }
 
-// Roll adds a byte to checksum
-func (r *Rollsum) Rotate(b byte) {
+// Rotate adds a byte to checksum and removes the oldest byte from the working window
+func (r *RollSum) Rotate(b byte) {
 	if len(r.window) == 0 {
 		return
 	}
@@ -80,8 +81,8 @@ func (r *Rollsum) Rotate(b byte) {
 	r.b = (((r.b - r.windowLen*leave - 1 + r.a) % mod) + mod) % mod
 }
 
-// In adds the given byte to checksum
-func (r *Rollsum) In(in byte) {
+// In adds the given byte to rolling hash
+func (r *RollSum) In(in byte) {
 	defer r.updateBlockLen()
 	r.window = append(r.window, in)
 
@@ -91,52 +92,58 @@ func (r *Rollsum) In(in byte) {
 	r.b = (r.b + r.a) % mod
 }
 
-// Out removes the oldest byte from checksum
-func (r *Rollsum) Out() {
+// Out removes the oldest byte from rolling hash window
+func (r *RollSum) Out() {
 	if len(r.window) == 0 {
 		r.Reset()
 		return
 	}
 
+	// Store the oldest and remove from window
 	r.removed = r.window[0]
 	r.window = r.window[1:]
 
+	// a = (a - (removed + mod) + mod) % mod
 	r.a = (r.a - uint32(r.removed) + mod) % mod
+
+	// b = (b - (len * removed) % mod) - 1 + mod) % mod
 	r.b = (r.b - ((r.windowLen * uint32(r.removed)) % mod) - 1 + mod) % mod
+
+	// update length of the window
 	r.updateBlockLen()
 }
 
 // Window returns current window used to generate checksum
-func (r *Rollsum) Window() []byte {
+func (r *RollSum) Window() []byte {
 	return r.window
 }
 
 // Removed returns the last removed byte from the window
-func (r *Rollsum) Removed() byte {
+func (r *RollSum) Removed() byte {
 	return r.removed
 }
 
 // Size returns underneath block size
-func (r *Rollsum) Size() int {
+func (r *RollSum) Size() int {
 	return int(r.windowLen)
 }
 
 // Sum32 returns an uint32 checksum of the working window
-func (r *Rollsum) Sum32() uint32 {
+func (r *RollSum) Sum32() uint32 {
 	return uint32(r.b<<16 | r.a)
 }
 
 // Sum appends checksum of current window to given byte slice
-func (r *Rollsum) Sum(in []byte) []byte {
+func (r *RollSum) Sum(in []byte) []byte {
 	s := r.Sum32()
 	return append(in, byte(s>>24), byte(s>>16), byte(s>>8), byte(s))
 }
 
-func (r *Rollsum) updateBlockLen() {
+func (r *RollSum) updateBlockLen() {
 	r.windowLen = uint32(len(r.window)) % mod
 }
 
-func (r *Rollsum) circle(b byte) (leave, enter uint32) {
+func (r *RollSum) circle(b byte) (leave, enter uint32) {
 	r.removed = r.window[0]
 	r.window = append(r.window[1:], b)
 	enter = uint32(b)
